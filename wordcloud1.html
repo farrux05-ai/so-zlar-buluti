@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Cloud - Nutq Tahlili</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a1f 50%, #000000 100%);
+            overflow: hidden;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #cloud-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 20px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            max-width: 320px;
+        }
+
+        .info-panel h2 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: #64d8ff;
+            text-shadow: 0 0 15px rgba(100, 216, 255, 0.6);
+            font-weight: 600;
+        }
+
+        .info-panel p {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #c5c5c5;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 20px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2);
+            z-index: 100;
+        }
+
+        .controls button {
+            display: block;
+            width: 100%;
+            padding: 12px 24px;
+            margin: 8px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .controls button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .stats {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(20, 20, 50, 0.95) 0%, rgba(10, 10, 30, 0.95) 100%);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid rgba(100, 200, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(100, 200, 255, 0.2);
+            z-index: 100;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
+            color: #c5c5c5;
+        }
+
+        .stat-value {
+            color: #64d8ff;
+            font-weight: bold;
+            margin-left: 15px;
+        }
+
+        .word {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        .word:hover {
+            filter: brightness(1.4) drop-shadow(0 0 15px currentColor);
+            transform: scale(1.15);
+        }
+
+        .tooltip {
+            position: absolute;
+            background: linear-gradient(135deg, rgba(10, 10, 30, 0.98) 0%, rgba(20, 20, 40, 0.98) 100%);
+            backdrop-filter: blur(15px);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(100, 200, 255, 0.6);
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            color: #64d8ff;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .tooltip-content {
+            color: #c5c5c5;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .word {
+            animation: fadeIn 0.6s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="cloud-container">
+        <svg id="word-cloud"></svg>
+        
+        <div class="info-panel">
+            <h2>☁️ So'zlar Buluti</h2>
+            <p>Nutqda eng ko'p ishlatiladigan so'zlar. Katta o'lcham - ko'proq ishlatilingan ma'noni bildiradi.</p>
+            <p style="margin-top: 10px; font-size: 12px; opacity: 0.8;">💡 So'z ustiga boring - batafsil ma'lumot</p>
+        </div>
+
+        <div class="controls">
+            <button onclick="rearrange()">🔄 Qayta joylashtirish</button>
+            <button onclick="sortByFrequency()">📊 Chastota bo'yicha</button>
+            <button onclick="sortAlphabetically()">🔤 Alifbo bo'yicha</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span>Jami so'zlar:</span>
+                <span class="stat-value" id="totalWords">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Noyob so'zlar:</span>
+                <span class="stat-value" id="uniqueWords">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Eng ko'p:</span>
+                <span class="stat-value" id="topWord">-</span>
+            </div>
+        </div>
+
+        <div class="tooltip" id="tooltip">
+            <div class="tooltip-title" id="tooltip-title"></div>
+            <div class="tooltip-content" id="tooltip-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const data = [
+            {word: "Turkiy", frequency: 16},
+            {word: "Hamkorlik", frequency: 11},
+            {word: "Rivojlantirish", frequency: 11},
+            {word: "Loyiha", frequency: 10},
+            {word: "Biz", frequency: 10},
+            {word: "Tashabbus", frequency: 7},
+            {word: "Xalqaro", frequency: 7},
+            {word: "Savdo", frequency: 6},
+            {word: "Iqtisodiy", frequency: 6},
+            {word: "Mahsulot", frequency: 6},
+            {word: "Xavfsizlik", frequency: 5},
+            {word: "Transport", frequency: 5},
+            {word: "Sheriklik", frequency: 5},
+            {word: "Yashil", frequency: 4},
+            {word: "Organik", frequency: 4},
+            {word: "Qardosh", frequency: 4},
+            {word: "Investitsiya", frequency: 3},
+            {word: "Kelajak", frequency: 3},
+            {word: "Toshkent", frequency: 3},
+            {word: "Gumanitar", frequency: 3},
+            {word: "Infratuzilma", frequency: 3},
+            {word: "O'rta karidor", frequency: 2},
+            {word: "Sun'iy intelekt", frequency: 2},
+            {word: "Yoshlar", frequency: 2},
+            {word: "Tranzit", frequency: 2},
+            {word: "Istiqbol", frequency: 2}
+        ];
+
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        const svg = d3.select("#word-cloud")
+            .attr("viewBox", [0, 0, width, height]);
+
+        // Statistika
+        const totalFreq = data.reduce((sum, d) => sum + d.frequency, 0);
+        document.getElementById('totalWords').textContent = totalFreq;
+        document.getElementById('uniqueWords').textContent = data.length;
+        document.getElementById('topWord').textContent = data[0].word;
+
+        // Har bir so'z uchun noyob rang
+        const colorPalette = [
+            "#FF6B9D", "#64D8FF", "#9D84FF", "#FFD93D", "#FF85C1",
+            "#A8E6CF", "#FFB347", "#87CEEB", "#DDA0DD", "#F08080",
+            "#98D8C8", "#FFB6C1", "#B0E57C", "#90EE90", "#7FFFD4",
+            "#FFD700", "#FFA500", "#BA55D3", "#FF69B4", "#00CED1",
+            "#F0E68C", "#DEB887", "#F5DEB3", "#FFC0CB", "#E6E6FA",
+            "#B0C4DE"
+        ];
+
+        const getColor = (index) => colorPalette[index % colorPalette.length];
+
+        // O'lcham skalasi
+        const fontScale = d3.scaleLinear()
+            .domain([d3.min(data, d => d.frequency), d3.max(data, d => d.frequency)])
+            .range([18, 80]);
+
+        let currentData = [...data];
+
+        function drawCloud(wordData) {
+            svg.selectAll("*").remove();
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${width / 2}, ${height / 2})`);
+
+            // Spiral joylashish algoritmi
+            const words = wordData.map((d, i) => {
+                const fontSize = fontScale(d.frequency);
+                const angle = 0; // Gorizontal
+                const textLength = d.word.length * fontSize * 0.6;
+                
+                return {
+                    ...d,
+                    fontSize: fontSize,
+                    angle: angle,
+                    width: textLength,
+                    height: fontSize,
+                    color: getColor(i)
+                };
+            });
+
+            // Spiral pozitsiyalar
+            const positions = [];
+            const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+            let radius = 0;
+
+            words.forEach((word, i) => {
+                let placed = false;
+                let attempts = 0;
+                
+                while (!placed && attempts < 500) {
+                    const angle = i * goldenAngle;
+                    const r = radius + attempts * 3;
+                    const x = r * Math.cos(angle);
+                    const y = r * Math.sin(angle);
+                    
+                    // Collision detection
+                    const collision = positions.some(pos => {
+                        const dx = Math.abs(x - pos.x);
+                        const dy = Math.abs(y - pos.y);
+                        return dx < (word.width + pos.width) / 2 + 10 && 
+                               dy < (word.height + pos.height) / 2 + 10;
+                    });
+                    
+                    if (!collision) {
+                        positions.push({x, y, width: word.width, height: word.height});
+                        word.x = x;
+                        word.y = y;
+                        placed = true;
+                    }
+                    
+                    attempts++;
+                }
+                
+                if (!placed) {
+                    word.x = (Math.random() - 0.5) * width * 0.6;
+                    word.y = (Math.random() - 0.5) * height * 0.6;
+                }
+            });
+
+            // So'zlarni chizish
+            const tooltip = d3.select("#tooltip");
+
+            const wordElements = g.selectAll("text")
+                .data(words)
+                .join("text")
+                .attr("class", "word")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .attr("font-size", d => d.fontSize)
+                .attr("fill", d => d.color)
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .text(d => d.word)
+                .style("animation-delay", (d, i) => `${i * 0.05}s`)
+                .on("mouseover", function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr("font-size", d.fontSize * 1.2);
+
+                    tooltip.select("#tooltip-title").text(d.word);
+                    tooltip.select("#tooltip-content").html(
+                        `<strong>Chastota:</strong> ${d.frequency}<br>` +
+                        `<strong>Ulush:</strong> ${(d.frequency / totalFreq * 100).toFixed(1)}%<br>` +
+                        `<strong>Reyting:</strong> ${data.findIndex(item => item.word === d.word) + 1}-o'rin`
+                    );
+                    tooltip.classed("visible", true)
+                        .style("left", (event.pageX + 20) + "px")
+                        .style("top", (event.pageY - 20) + "px");
+                })
+                .on("mouseout", function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr("font-size", d.fontSize);
+
+                    tooltip.classed("visible", false);
+                })
+                .on("click", function(event, d) {
+                    // So'zni highlight qilish
+                    wordElements.style("opacity", w => w.word === d.word ? 1 : 0.3);
+                    
+                    setTimeout(() => {
+                        wordElements.style("opacity", 1);
+                    }, 2000);
+                });
+        }
+
+        function rearrange() {
+            const shuffled = [...currentData].sort(() => Math.random() - 0.5);
+            drawCloud(shuffled);
+        }
+
+        function sortByFrequency() {
+            currentData = [...data].sort((a, b) => b.frequency - a.frequency);
+            drawCloud(currentData);
+        }
+
+        function sortAlphabetically() {
+            currentData = [...data].sort((a, b) => a.word.localeCompare(b.word, 'uz'));
+            drawCloud(currentData);
+        }
+
+        // Dastlabki chizish
+        drawCloud(data);
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            location.reload();
+        });
+    </script>
+</body>
+</html>S
